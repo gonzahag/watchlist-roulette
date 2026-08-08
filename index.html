@@ -151,75 +151,6 @@ transition:transform .15s ease;
 }
 .icon-btn:active{ transform:scale(.9) rotate(20deg); }
 #fileInput{display:none;}
-/* ---------- Settings ---------- */
-.settings-card{
-background:var(--cream);
-color:var(--ink);
-border-radius:16px;
-padding:26px 24px;
-width:100%;
-max-width:360px;
-transform:scale(.9);
-transition:transform .3s ease;
-box-shadow:0 30px 60px rgba(0,0,0,.5);
-}
-.overlay.show .settings-card{ transform:scale(1); }
-.settings-card h3{
-font-family:var(--font-display);
-font-size:24px;
-letter-spacing:1px;
-margin:0 0 4px;
-}
-.settings-card .field{ margin-top:16px; }
-.settings-card label{
-display:block;
-font-family:var(--font-mono);
-font-size:10px;
-letter-spacing:1.5px;
-text-transform:uppercase;
-color:var(--crimson);
-margin-bottom:6px;
-}
-.settings-card input, .settings-card select{
-width:100%;
-font-family:var(--font-body);
-font-size:14px;
-padding:10px 12px;
-border-radius:8px;
-border:1px solid rgba(36,31,28,.2);
-background:#fff;
-color:var(--ink);
-}
-.settings-card .help{
-font-size:11px;
-color:rgba(36,31,28,.6);
-margin-top:6px;
-line-height:1.5;
-}
-.settings-card .help a{ color:var(--velvet); }
-.settings-card .save-btn{
-margin-top:20px;
-width:100%;
-font-family:var(--font-display);
-font-size:20px;
-letter-spacing:1px;
-background:var(--brass);
-color:var(--ink);
-border:none;
-padding:11px;
-border-radius:9px;
-cursor:pointer;
-}
-.settings-card .close-btn{
-margin-top:8px;
-width:100%;
-background:none;
-border:none;
-color:rgba(36,31,28,.55);
-font-size:12px;
-padding:8px;
-cursor:pointer;
-}
 /* ---------- Poster ---------- */
 .poster-wrap{
 width:120px;
@@ -489,8 +420,7 @@ text-align:center;
 <div class="count" id="countText">Sin datos cargados</div>
 </div>
 <div class="row-btns">
-<button class="icon-btn" id="settingsBtn" title="Ajustes" aria-label="Ajustes">⚙</button>
-<button class="upload-btn" id="uploadBtn">Cargar CSV</button>
+<button class="upload-btn" id="uploadBtn">Carga tu watchlist</button>
 </div>
 <input type="file" id="fileInput" accept=".csv,text/csv">
 </div>
@@ -542,19 +472,6 @@ text-align:center;
 </div>
 </div>
 
-<div class="overlay" id="settingsOverlay">
-<div class="settings-card">
-<h3>Ajustes</h3>
-<div class="field">
-<label for="tmdbKeyInput">API Key de TMDB (opcional)</label>
-<input type="text" id="tmdbKeyInput" placeholder="Dejá vacío para usar la de la app">
-<div class="help">Por default, las portadas se piden a través de un servidor intermedio que ya tiene la key configurada — no hace falta que pongas nada acá. Si preferís usar tu propia key en su lugar, conseguila gratis en <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a> y pegala acá.</div>
-</div>
-<button class="save-btn" id="settingsSaveBtn">Guardar</button>
-<button class="close-btn" id="settingsCloseBtn">Cerrar</button>
-</div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -585,11 +502,6 @@ const jwBtn = el('jwBtn');
 const btnKeep = el('btnKeep');
 const btnRemove = el('btnRemove');
 const toastEl = el('toast');
-const settingsBtn = el('settingsBtn');
-const settingsOverlay = el('settingsOverlay');
-const settingsSaveBtn = el('settingsSaveBtn');
-const settingsCloseBtn = el('settingsCloseBtn');
-const tmdbKeyInput = el('tmdbKeyInput');
 
 /* ---------- Almacenamiento local (persiste en este navegador una vez alojada la app) ---------- */
 function loadJSON(key, fallback){
@@ -606,11 +518,6 @@ function saveJSON(key, value){
 // Pegá acá la URL de tu Cloudflare Worker (el que esconde la API key de TMDB).
 // Ej: 'https://tmdb-poster-proxy.tu-usuario.workers.dev'
 const PROXY_URL = 'https://tmdb-poster-proxy.gonzahag.workers.dev';
-
-function getSettings(){
-  return loadJSON('settings', { tmdbKey: '' });
-}
-function saveSettings(s){ saveJSON('settings', s); }
 
 let toastTimer = null;
 function toast(msg){
@@ -742,35 +649,21 @@ function spin(){
 }
 
 async function fetchPoster(movie){
-  const { tmdbKey } = getSettings();
   const cache = loadJSON('posterCache', {});
   const cacheKey = `${movie.name}__${movie.year}`;
   if (cache[cacheKey] !== undefined) return cache[cacheKey];
 
   try{
-    let posterPath = null;
+    if (!PROXY_URL) return null;
 
-    if (tmdbKey){
-      // El usuario cargó su propia key: pedimos directo a TMDB.
-      const params = new URLSearchParams({ api_key: tmdbKey, query: movie.name });
-      if (movie.year) params.set('year', movie.year);
-      const res = await fetch(`https://api.themoviedb.org/3/search/movie?${params.toString()}`);
-      if (res.ok){
-        const data = await res.json();
-        const first = data.results && data.results[0];
-        posterPath = first ? first.poster_path : null;
-      }
-    } else if (PROXY_URL){
-      // Sin key propia: usamos el Worker, que tiene la key escondida del lado del servidor.
-      const params = new URLSearchParams({ query: movie.name });
-      if (movie.year) params.set('year', movie.year);
-      const res = await fetch(`${PROXY_URL}/poster?${params.toString()}`);
-      if (res.ok){
-        const data = await res.json();
-        posterPath = data.poster_path;
-      }
-    } else {
-      return null;
+    // Pedimos el póster al Worker, que tiene la key de TMDB escondida del lado del servidor.
+    const params = new URLSearchParams({ query: movie.name });
+    if (movie.year) params.set('year', movie.year);
+    const res = await fetch(`${PROXY_URL}/poster?${params.toString()}`);
+    let posterPath = null;
+    if (res.ok){
+      const data = await res.json();
+      posterPath = data.poster_path;
     }
 
     const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : null;
@@ -830,6 +723,12 @@ function hideOverlay(){
 }
 
 btnKeep.addEventListener('click', hideOverlay);
+
+// Clic en el fondo oscuro (fuera de la tarjeta) cierra igual que "Dejarla en la lista".
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) hideOverlay();
+});
+
 btnRemove.addEventListener('click', async () => {
   if (pendingIndex === null) return;
   const removed = movies[pendingIndex];
@@ -866,18 +765,6 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 spinBtn.addEventListener('click', spin);
-
-settingsBtn.addEventListener('click', () => {
-  const s = getSettings();
-  tmdbKeyInput.value = s.tmdbKey || '';
-  settingsOverlay.classList.add('show');
-});
-settingsCloseBtn.addEventListener('click', () => settingsOverlay.classList.remove('show'));
-settingsSaveBtn.addEventListener('click', () => {
-  saveSettings({ tmdbKey: tmdbKeyInput.value.trim() });
-  settingsOverlay.classList.remove('show');
-  toast('Ajustes guardados');
-});
 
 (async function init(){
   await loadMovies();
