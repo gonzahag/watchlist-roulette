@@ -627,7 +627,7 @@ function saveJSON(key, value){
 
 // Pegá acá la URL de tu Cloudflare Worker (el que esconde la API key de TMDB).
 // Ej: 'https://tmdb-poster-proxy.tu-usuario.workers.dev'
-const PROXY_URL = 'https://tmdb-poster-proxy.gonzahag.workers.dev/';
+const PROXY_URL = 'https://tmdb-poster-proxy.gonzahag.workers.dev';
 
 function getSettings(){
   return loadJSON('settings', { tmdbKey: '' });
